@@ -88,3 +88,10 @@ DirectX12/build/x64/Debug/ZERO_CHECK/ZERO_CHECK.tlog/CustomBuild.write.1.tlog
 DirectX12/build/x64/Debug/ZERO_CHECK/ZERO_CHECK.tlog/ZERO_CHECK.lastbuildstate
 DirectX12/build/ZERO_CHECK.vcxproj
 DirectX12/build/ZERO_CHECK.vcxproj.filters
+*.rule
+*.db-wal
+*.tlog
+*.vsidx
+*.db-shm
+*.opendb
+*.ipch
