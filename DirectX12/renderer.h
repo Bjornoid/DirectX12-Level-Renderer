@@ -81,18 +81,23 @@ class Renderer
 	bool														level1 = true,
 																level2 = false;
 
+	float														deltaTime;
+	std::chrono::steady_clock::time_point						lastUpdate;
+
+
 	//What we need for music
 	GW::AUDIO::GAudio											gAudio;
 	GW::AUDIO::GMusic											gMusic;
 	const char*													musicPath = "../Audio/MusicTrack.wav";
-	float														timeBtwPauseOrPlay;
-	std::chrono::steady_clock::time_point						lastPauseOrPlay;
+	float														timeBtwPauseOrPlay = 0;
 
 	//What we need for the 3D sound effect
 	GW::AUDIO::GAudio3D											gAudio3D;
 	GW::AUDIO::GSound3D											gSound3D;
 	const char*													dogBarkPath = "../Audio/DogBark.wav";
 	GW::MATH::GVECTORF											dogPos;
+
+
 
 public:
 
@@ -380,21 +385,20 @@ private:
 	{
 		float pKeyState = 0;
 		ginput.GetState(G_KEY_P, pKeyState);
+		timeBtwPauseOrPlay += deltaTime;
 		if (pKeyState != 0)
-		{
-			auto now = std::chrono::steady_clock::now();
-			timeBtwPauseOrPlay = std::chrono::duration_cast<std::chrono::microseconds>(now - lastPauseOrPlay).count() / 1000000.0f;
-			lastPauseOrPlay = now;
-
+		{	
 			bool musicPlaying;
 			gMusic.isPlaying(musicPlaying);
 			
-			if (timeBtwPauseOrPlay > 0.25f)
+			if (timeBtwPauseOrPlay > 0.3f)
 			{
 				if (musicPlaying)
 					gMusic.Pause();
 				else
 					gMusic.Resume();
+
+				timeBtwPauseOrPlay = 0;
 			}
 		}
 	}
@@ -415,6 +419,15 @@ private:
 	{
 		PauseAndPlayMusic();
 		PlayDogBark();
+	}
+
+	void RotateUFO()
+	{
+		//UFO tranform index is 31
+		float rotation = G_DEGREE_TO_RADIAN_F(90) * deltaTime;
+
+		if (level1)
+			GW::MATH::GMatrix::RotateYLocalF(levelHandle.levelTransforms[31], rotation, levelHandle.levelTransforms[31]);
 	}
 
 	void InitializeGraphicsPipeline(ID3D12Device* creator)
@@ -542,12 +555,14 @@ public:
 	{
 		HandleLevelSwapping();
 		HandleAudio();
+		RotateUFO();
 	
 		PipelineHandles curHandles = GetCurrentPipelineHandles();
 		SetUpPipeline(curHandles);
 
 		UINT curFrame = 0;
 		d3d.GetSwapChainBufferIndex(curFrame);
+		UpdateTransformsForGPU(curFrame);
 
 		curHandles.commandList->SetGraphicsRoot32BitConstants(0, 32, &sceneDataForGPU, 0);
 		curHandles.commandList->SetGraphicsRootShaderResourceView(2, transformStructuredBuffer[curFrame]->GetGPUVirtualAddress());
@@ -573,6 +588,10 @@ public:
 
 	void Update()
 	{	
+		auto now = std::chrono::steady_clock::now();
+		deltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - lastUpdate).count() / 1000000.0f;
+		lastUpdate = now;
+
 		GW::MATH::GMATRIXF cameraMatrix;
 		GW::MATH::GMatrix::InverseF(viewMatrix, cameraMatrix);
 		float aspectRatio;

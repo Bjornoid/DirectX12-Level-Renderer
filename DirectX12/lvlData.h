@@ -26,6 +26,7 @@ public:
 	{
 		const char* blendername; // *NEW* name of model straight from blender (FLECS)
 		unsigned int modelIndex, transformIndex;
+		int parentTransformIndex;
 	};
 	// All geometry data combined for level to be loaded onto the video card
 	std::vector<H2B::VERTEX> levelVertices;
@@ -102,6 +103,7 @@ private:
 		GW::MATH2D::GVECTOR3F boundry[8];
 		mutable std::vector<std::string> blenderNames; // *NEW* names from blender
 		mutable std::vector<GW::MATH::GMATRIXF> instances; // where to draw
+		mutable std::vector<int> parentIndices; // the transform index of the blender objects parent, set to -1 if no parent
 		bool operator<(const MODEL_ENTRY& cmp) const {
 			return modelFile < cmp.modelFile; // you need this for std::set to work
 		}
@@ -134,8 +136,12 @@ private:
 			return false;
 		}
 		char linebuffer[1024];
+		GW::MATH::GMATRIXF* lastParentTransformPtr = nullptr;
+		int counter = 0;
+		int lastParentIndex;
 		while (+file.ReadLine(linebuffer, 1024, '\n'))
 		{
+			int parentTransformIndex = -1;
 			// having to have this is a bug, need to have Read/ReadLine return failure at EOF
 			if (linebuffer[0] == '\0')
 				break;
@@ -185,13 +191,19 @@ private:
 				{
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
+					add.parentIndices.push_back(parentTransformIndex);
 					outModels.insert(add);
+					lastParentTransformPtr = &transform;
 				}
 				else // yes
 				{
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
+					found->parentIndices.push_back(parentTransformIndex);
+					lastParentTransformPtr = &transform;
 				}
+				lastParentIndex = counter;
+				counter++;
 			}
 			else if (std::strcmp(linebuffer, "  MESH") == 0)
 			{
@@ -230,15 +242,20 @@ private:
 				auto found = outModels.find(add);
 				if (found == outModels.end()) // no
 				{
+					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
+					add.parentIndices.push_back(lastParentIndex);
 					outModels.insert(add);
 				}
 				else // yes
 				{
+					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
+					found->parentIndices.push_back(lastParentIndex);
 				}
+				counter++;
 			}
 		}
 		log.LogCategorized("MESSAGE", "Game Level File Reading Complete.");
@@ -303,12 +320,14 @@ private:
 				levelTransforms.insert(levelTransforms.end(), i->instances.begin(), i->instances.end());
 				// add instance set
 				levelInstances.push_back(instances);
+				
 				// *NEW* Add an entry for each unique blender object
 				int offset = 0;
-				for (auto& n : i->blenderNames) {
+				for (int j = 0; j < i->blenderNames.size(); j++)
+				{
 					BLENDER_OBJECT obj{
-						level_strings.insert(n).first->c_str(),
-						instances.modelIndex, instances.transformStart + offset++
+						level_strings.insert(i->blenderNames[j]).first->c_str(),
+						instances.modelIndex, instances.transformStart + offset++, i->parentIndices[j]
 					};
 					blenderObjects.push_back(obj);
 				}
