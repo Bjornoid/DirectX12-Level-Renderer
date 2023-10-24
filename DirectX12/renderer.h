@@ -421,14 +421,27 @@ private:
 		PlayDogBark();
 	}
 
-	void RotateUFO()
+	void LinkChildrenToParent()
 	{
-		//UFO tranform index is 31
-		float rotation = G_DEGREE_TO_RADIAN_F(90) * deltaTime;
-
-		if (level1)
-			GW::MATH::GMatrix::RotateYLocalF(levelHandle.levelTransforms[31], rotation, levelHandle.levelTransforms[31]);
+		for (int i = 0; i < levelHandle.blenderObjects.size(); i++)
+		{
+			if (levelHandle.blenderObjects[i].parentTransformIndex != -1)
+			{
+				GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
+					levelHandle.levelTransforms[levelHandle.blenderObjects[i].parentTransformIndex],
+					levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex]);
+			}
+		}
 	}
+
+	void RotateObjectY(unsigned blenderObjIndex, float degrees)
+	{
+		float radians = G_DEGREE_TO_RADIAN_F(degrees) * deltaTime;
+
+		GW::MATH::GMatrix::RotateYLocalF(levelHandle.levelTransforms[levelHandle.blenderObjects[blenderObjIndex].transformIndex], radians,
+			levelHandle.levelTransforms[levelHandle.blenderObjects[blenderObjIndex].transformIndex]);
+	}
+
 
 	void InitializeGraphicsPipeline(ID3D12Device* creator)
 	{
@@ -555,7 +568,6 @@ public:
 	{
 		HandleLevelSwapping();
 		HandleAudio();
-		RotateUFO();
 	
 		PipelineHandles curHandles = GetCurrentPipelineHandles();
 		SetUpPipeline(curHandles);
@@ -606,6 +618,10 @@ public:
 		GW::MATH::GQUATERNIONF orientation;
 		GW::MATH::GMatrix::GetRotationF(cameraMatrix, orientation);
 		gAudio3D.Update3DListener(cameraMatrix.row4, orientation);
+
+		RotateObjectY(31, 90);
+
+		LinkChildrenToParent();
 	}
 
 private:
