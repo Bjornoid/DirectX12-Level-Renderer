@@ -103,7 +103,7 @@ private:
 		GW::MATH2D::GVECTOR3F boundry[8];
 		mutable std::vector<std::string> blenderNames; // *NEW* names from blender
 		mutable std::vector<GW::MATH::GMATRIXF> instances; // where to draw
-		mutable std::vector<int> parentIndices; // the transform index of the blender objects parent, set to -1 if no parent
+		mutable std::vector<GW::MATH::GMATRIXF> parents; // the transform index of the blender objects parent, set to -1 if no parent
 		bool operator<(const MODEL_ENTRY& cmp) const {
 			return modelFile < cmp.modelFile; // you need this for std::set to work
 		}
@@ -137,11 +137,8 @@ private:
 		}
 		char linebuffer[1024];
 		GW::MATH::GMATRIXF* lastParentTransformPtr = nullptr;
-		int counter = 0;
-		int lastParentIndex;
 		while (+file.ReadLine(linebuffer, 1024, '\n'))
 		{
-			int parentTransformIndex = -1;
 			// having to have this is a bug, need to have Read/ReadLine return failure at EOF
 			if (linebuffer[0] == '\0')
 				break;
@@ -191,7 +188,7 @@ private:
 				{
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
-					add.parentIndices.push_back(parentTransformIndex);
+					add.parents.push_back(GW::MATH::GIdentityMatrixF);
 					outModels.insert(add);
 					lastParentTransformPtr = &transform;
 				}
@@ -199,11 +196,9 @@ private:
 				{
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
-					found->parentIndices.push_back(parentTransformIndex);
+					found->parents.push_back(GW::MATH::GIdentityMatrixF);
 					lastParentTransformPtr = &transform;
 				}
-				lastParentIndex = counter;
-				counter++;
 			}
 			else if (std::strcmp(linebuffer, "  MESH") == 0)
 			{
@@ -245,7 +240,7 @@ private:
 					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
-					add.parentIndices.push_back(lastParentIndex);
+					add.parents.push_back(*lastParentTransformPtr);
 					outModels.insert(add);
 				}
 				else // yes
@@ -253,9 +248,8 @@ private:
 					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
-					found->parentIndices.push_back(lastParentIndex);
+					found->parents.push_back(*lastParentTransformPtr);
 				}
-				counter++;
 			}
 		}
 		log.LogCategorized("MESSAGE", "Game Level File Reading Complete.");
@@ -324,10 +318,10 @@ private:
 				// *NEW* Add an entry for each unique blender object
 				int offset = 0;
 				for (int j = 0; j < i->blenderNames.size(); j++)
-				{
+				{										
 					BLENDER_OBJECT obj{
 						level_strings.insert(i->blenderNames[j]).first->c_str(),
-						instances.modelIndex, instances.transformStart + offset++, i->parentIndices[j]
+						instances.modelIndex, instances.transformStart + offset++
 					};
 					blenderObjects.push_back(obj);
 				}
@@ -337,6 +331,24 @@ private:
 				log.LogCategorized("ERROR",
 					(std::string("H2B Not Found: ") + modelPath + "/" + i->modelFile).c_str());
 				log.LogCategorized("WARNING", "Loading will continue but model(s) are missing.");
+			}
+		}
+		int counter = 0;
+		for (auto i = modelSet.begin(); i != modelSet.end(); ++i)
+		{
+			for (int j = 0; j < i->blenderNames.size(); j++)
+			{
+				blenderObjects[counter].parentTransformIndex = -1;
+				for (int t = 0; t < levelTransforms.size(); t++)
+				{
+					if (i->parents[j].row4.data[0] == levelTransforms[t].row4.data[0] &&
+						i->parents[j].row4.data[1] == levelTransforms[t].row4.data[1] &&
+						i->parents[j].row4.data[2] == levelTransforms[t].row4.data[2]) {
+						blenderObjects[counter].parentTransformIndex = t;
+						break;
+					}
+				}
+				counter++;
 			}
 		}
 		log.LogCategorized("MESSAGE", "Importing of .H2B File Data Complete.");

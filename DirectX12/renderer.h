@@ -61,6 +61,8 @@ class Renderer
 	//Instance of Mesh Data to send to GPU
 	MESH_DATA													meshDataForGPU;
 
+	//The vector of transforms to update/send to gpu
+	std::vector<GW::MATH::GMATRIXF>								transformsForGPU;
 	//Number of buffers in the swapchain
 	unsigned int												maxActiveFrames;
 	
@@ -138,7 +140,6 @@ public:
 		InitializeProjectionMatrix();
 
 		InitializeSceneDataForGPU();
-
 
 		InitializeGraphics();
 	}
@@ -244,6 +245,12 @@ private:
 		sceneDataForGPU.sunColor = sunLightColor;
 		sceneDataForGPU.sunDirection = sunLightDir;
 		sceneDataForGPU.sunAmbiet = sunLightAmbient;
+
+		//Transform Init
+		for (int i = 0; i < levelHandle.levelTransforms.size(); i++)
+		{
+			transformsForGPU.push_back(levelHandle.levelTransforms[i]);
+		}
 	}
 
 	void InitializeDescriptorHeap(ID3D12Device* creator)
@@ -319,7 +326,7 @@ private:
 	{
 		UINT8* transferMemoryLocation = nullptr;
 		transformStructuredBuffer[curFrameBufferIndex]->Map(0, &CD3DX12_RANGE(0, 0), reinterpret_cast<void**>(&transferMemoryLocation));
-		memcpy(transferMemoryLocation, levelHandle.levelTransforms.data(), sizeof(GW::MATH::GMATRIXF) * levelHandle.levelTransforms.size());
+		memcpy(transferMemoryLocation, transformsForGPU.data(), sizeof(GW::MATH::GMATRIXF) * transformsForGPU.size());
 		transformStructuredBuffer[curFrameBufferIndex]->Unmap(0, nullptr);
 		
 	}
@@ -428,8 +435,8 @@ private:
 			if (levelHandle.blenderObjects[i].parentTransformIndex != -1)
 			{
 				GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
-					levelHandle.levelTransforms[levelHandle.blenderObjects[i].parentTransformIndex],
-					levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex]);
+					transformsForGPU[levelHandle.blenderObjects[i].parentTransformIndex],
+					transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
 			}
 		}
 	}
@@ -438,8 +445,8 @@ private:
 	{
 		float radians = G_DEGREE_TO_RADIAN_F(degrees) * deltaTime;
 
-		GW::MATH::GMatrix::RotateYLocalF(levelHandle.levelTransforms[levelHandle.blenderObjects[blenderObjIndex].transformIndex], radians,
-			levelHandle.levelTransforms[levelHandle.blenderObjects[blenderObjIndex].transformIndex]);
+		GW::MATH::GMatrix::RotateYLocalF(transformsForGPU[levelHandle.blenderObjects[blenderObjIndex].transformIndex], radians,
+			transformsForGPU[levelHandle.blenderObjects[blenderObjIndex].transformIndex]);
 	}
 
 
