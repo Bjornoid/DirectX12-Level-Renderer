@@ -338,8 +338,6 @@ private:
 		ginput.GetState(G_KEY_2, keyState2);
 		if (KeyState1 != 0 && !level1)
 		{
-			ID3D12Device* creator;
-			d3d.GetDevice((void**)&creator);
 			levelHandle.UnloadLevel();
 			
 			levelHandle.LoadLevel(gameLevelPaths[0], levelModelPaths[0], renderLog);
@@ -354,6 +352,14 @@ private:
 				transformStructuredBuffer[i].Reset();
 				materialStructuredBuffer[i].Reset();
 			}
+			transformsForGPU.clear();
+			for (int i = 0; i < levelHandle.levelTransforms.size(); i++)
+			{
+				transformsForGPU.push_back(levelHandle.levelTransforms[i]);
+			}
+
+			ID3D12Device* creator;
+			d3d.GetDevice((void**)&creator);
 
 			InitializeVertexBuffer(creator);
 			InitializeIndexBuffer(creator);
@@ -363,8 +369,6 @@ private:
 		}
 		else if (keyState2 != 0 && !level2)
 		{
-			ID3D12Device* creator;
-			d3d.GetDevice((void**)&creator);
 			levelHandle.UnloadLevel();
 
 			levelHandle.LoadLevel(gameLevelPaths[1], levelModelPaths[1], renderLog);
@@ -379,6 +383,14 @@ private:
 				transformStructuredBuffer[i].Reset();
 				materialStructuredBuffer[i].Reset();
 			}
+			transformsForGPU.clear();
+			for (int i = 0; i < levelHandle.levelTransforms.size(); i++)
+			{
+				transformsForGPU.push_back(levelHandle.levelTransforms[i]);
+			}
+
+			ID3D12Device* creator;
+			d3d.GetDevice((void**)&creator);
 
 			InitializeVertexBuffer(creator);
 			InitializeIndexBuffer(creator);
@@ -626,7 +638,8 @@ public:
 		GW::MATH::GMatrix::GetRotationF(cameraMatrix, orientation);
 		gAudio3D.Update3DListener(cameraMatrix.row4, orientation);
 
-		RotateObjectY(31, 90);
+		if (level1)
+			RotateObjectY(31, 90);
 
 		LinkChildrenToParent();
 	}
