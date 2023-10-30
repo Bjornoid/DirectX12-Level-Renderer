@@ -1,6 +1,7 @@
 #include <d3dcompiler.h> // required for compiling shaders on the fly, consider pre-compiling instead
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
+#include <commdlg.h>
 
 void PrintLabeledDebugString(const char* label, const char* toPrint)
 {
@@ -79,10 +80,6 @@ class Renderer
 																sunLightColor = { 0.9f, 0.9f, 1, 1 },
 																sunLightAmbient = { 0.75f, 0.9f, 0.9f, 0 };
 
-	//Level Swap Tracking Bools
-	bool														level1 = true,
-																level2 = false;
-
 	float														deltaTime;
 	std::chrono::steady_clock::time_point						lastUpdate;
 
@@ -102,10 +99,6 @@ class Renderer
 
 
 public:
-
-	//For Level Swapping
-	std::vector<char*> gameLevelPaths;
-	std::vector<char*> levelModelPaths;
 
 	Renderer(GW::SYSTEM::GWindow _win, GW::GRAPHICS::GDirectX12Surface _d3d,
 			 Level_Data& _handle, GW::SYSTEM::GLog& _log) : levelHandle(_handle) , renderLog(_log)
@@ -331,49 +324,44 @@ private:
 		
 	}
 
+	std::string OpenFile(const char* filter)
+	{
+		OPENFILENAMEA ofn;
+		char szFile[260] = { 0 };
+		ZeroMemory(&ofn, sizeof(OPENFILENAME));
+		ofn.lStructSize = sizeof(OPENFILENAME);
+		GW::SYSTEM::UNIVERSAL_WINDOW_HANDLE uWH;
+		win.GetWindowHandle(uWH);
+		ofn.hwndOwner = (HWND)uWH.window;
+		ofn.lpstrFile = szFile;
+		ofn.nMaxFile = sizeof(szFile);
+		ofn.lpstrFilter = filter;
+		ofn.nFilterIndex = 1;
+		ofn.lpstrInitialDir = "../";
+		ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+		if (GetOpenFileNameA(&ofn))
+			return ofn.lpstrFile;
+
+
+		return std::string();
+	}
+
 	void HandleLevelSwapping()
 	{
-		float KeyState1 = 0, keyState2 = 0;
-		ginput.GetState(G_KEY_1, KeyState1);
-		ginput.GetState(G_KEY_2, keyState2);
-		if (KeyState1 != 0 && !level1)
+		float KeyStateF1 = 0;
+		ginput.GetState(G_KEY_F1, KeyStateF1);
+		if (KeyStateF1 != 0)
 		{
+			std::string gameLevelPath = OpenFile("GameLevel.txt");
+			gameLevelPath = gameLevelPath.substr(0, gameLevelPath.find_last_of(std::string("\\")));
+			gameLevelPath = gameLevelPath.substr(gameLevelPath.find_last_of(std::string("\\")) + 1);
+			gameLevelPath = "../" + gameLevelPath;
+			std::string modelsPath = gameLevelPath.substr(0, gameLevelPath.find_last_of(std::string("\\"))) + "/Models";
+			gameLevelPath += "/GameLevel.txt";
+
 			levelHandle.UnloadLevel();
 			
-			levelHandle.LoadLevel(gameLevelPaths[0], levelModelPaths[0], renderLog);
-			level1 = !level1;
-			level2 = !level2;
-			renderLog.Log("Switched Levels");
-
-			vertexBuffer.Reset();
-			indexBuffer.Reset();
-			for (int i = 0; i < maxActiveFrames; i++)
-			{
-				transformStructuredBuffer[i].Reset();
-				materialStructuredBuffer[i].Reset();
-			}
-			transformsForGPU.clear();
-			for (int i = 0; i < levelHandle.levelTransforms.size(); i++)
-			{
-				transformsForGPU.push_back(levelHandle.levelTransforms[i]);
-			}
-
-			ID3D12Device* creator;
-			d3d.GetDevice((void**)&creator);
-
-			InitializeVertexBuffer(creator);
-			InitializeIndexBuffer(creator);
-			InitializeStructuredBuffersAndViews(creator);
-
-			creator->Release();
-		}
-		else if (keyState2 != 0 && !level2)
-		{
-			levelHandle.UnloadLevel();
-
-			levelHandle.LoadLevel(gameLevelPaths[1], levelModelPaths[1], renderLog);
-			level1 = !level1;
-			level2 = !level2;
+			levelHandle.LoadLevel(gameLevelPath.c_str(), modelsPath.c_str(), renderLog);
 			renderLog.Log("Switched Levels");
 
 			vertexBuffer.Reset();
@@ -428,7 +416,9 @@ private:
 		ginput.GetState(G_KEY_B, bKeyState);
 		bool isPlaying;
 		gSound3D.isPlaying(isPlaying);
-		if (bKeyState != 0 && !isPlaying && level1)
+
+		bool isLevel1 = (levelHandle.levelTransforms.size()  == 42);
+		if (bKeyState != 0 && !isPlaying && isLevel1)
 		{
 			gSound3D.Play();
 		}
@@ -638,7 +628,8 @@ public:
 		GW::MATH::GMatrix::GetRotationF(cameraMatrix, orientation);
 		gAudio3D.Update3DListener(cameraMatrix.row4, orientation);
 
-		if (level1)
+		bool isLevel1 = (levelHandle.levelTransforms.size() == 42);
+		if (isLevel1)
 			RotateObjectY(31, 90);
 
 		LinkChildrenToParent();

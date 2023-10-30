@@ -52,19 +52,9 @@ int main()
 			log.EnableConsoleLogging(true);
 			Level_Data myLevel;
 
-			bool loadedLevel = myLevel.LoadLevel("../GameLevel.txt", "../Models", log);
-			//////////////////////////////////////
-			//All the levels we want to switch between
-			char* firstGameLevel = "../GameLevel.txt";
-			char* firstLevelModels = "../Models";
-			char* secondGameLevel = "../GameLevel2.txt";
-			char* secondLevelModels = "../Models2";
+			bool loadedLevel = myLevel.LoadLevel("../Level1/GameLevel.txt", "../Level1/Models", log);
 
 			Renderer renderer(win, d3d12, myLevel, log); // init
-			renderer.gameLevelPaths.push_back(firstGameLevel);
-			renderer.levelModelPaths.push_back(firstLevelModels);
-			renderer.gameLevelPaths.push_back(secondGameLevel);
-			renderer.levelModelPaths.push_back(secondLevelModels);
 
 			while (+win.ProcessWindowEvents())
 			{
