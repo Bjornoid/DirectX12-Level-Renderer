@@ -1,6 +1,7 @@
 #include <d3dcompiler.h> // required for compiling shaders on the fly, consider pre-compiling instead
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
+#include <DDSTextureLoader.h>
 #include <commdlg.h>
 
 void PrintLabeledDebugString(const char* label, const char* toPrint)

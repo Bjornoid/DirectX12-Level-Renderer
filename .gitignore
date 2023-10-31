@@ -95,3 +95,7 @@ DirectX12/build/ZERO_CHECK.vcxproj.filters
 *.db-shm
 *.opendb
 *.ipch
+DirectX12/build/x64/Debug/ZERO_CHECK/ZERO_CHECK.vcxproj.FileListAbsolute.txt
+DirectX12/build/x64/Debug/ZERO_CHECK/ZERO_CHECK.Build.CppClean.log
+DirectX12/build/Level_Renderer_D3D12.dir/Debug/Level_Renderer_D3D12.vcxproj.FileListAbsolute.txt
+DirectX12/build/Level_Renderer_D3D12.dir/Debug/Level_Renderer_D3D12.Build.CppClean.log
