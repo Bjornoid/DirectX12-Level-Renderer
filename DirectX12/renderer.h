@@ -75,6 +75,10 @@ class Renderer
 
 	//Descriptor Heap for Structured Buffers
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>				descriptorHeap;
+	UINT														descriptorHeapSize;
+
+	Microsoft::WRL::ComPtr<ID3D12Resource>						textureResource;
+	Microsoft::WRL::ComPtr<ID3D12Resource>						textureUpload;
 
 	//*HARD CODED* sun settings
 	GW::MATH::GVECTORF											sunLightDir = { -1, -1, 2 },
@@ -153,6 +157,8 @@ private:
 		InitializeStructuredBuffersAndViews(creator);
 
 		InitializeGraphicsPipeline(creator);
+
+		UploadTextures(creator);
 
 		// free temporary handle
 		creator->Release();
@@ -233,6 +239,21 @@ private:
 		indexView.SizeInBytes = sizeInBytes;
 	}
 
+	void UploadTextures(ID3D12Device* creator)
+	{
+		ID3D12GraphicsCommandList* commandList;
+		d3d.GetCommandList((void**)&commandList);
+
+		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> c(commandList);
+		bool isCubeMap = false;
+		HRESULT hr = E_NOTIMPL;
+		std::wstring texturePath = L"../Level3/Textures/cleric-staff-texture.dds";
+		hr = LoadTexture(creator, c, texturePath, textureResource, textureUpload, &isCubeMap);
+
+
+		commandList->Release();
+	}
+
 	void InitializeSceneDataForGPU()
 	{
 		//Scene Variables that currently Don't change throughout the program
@@ -250,13 +271,15 @@ private:
 	void InitializeDescriptorHeap(ID3D12Device* creator)
 	{
 		UINT numberOfStructuredBuffers = maxActiveFrames * 2;
-		UINT numberOfDescriptors = numberOfStructuredBuffers;
+		UINT numberOfTextures = 13;
+		UINT numberOfDescriptors = numberOfStructuredBuffers + numberOfTextures;
 
 		D3D12_DESCRIPTOR_HEAP_DESC cBufferHeapDesc = {};
 		cBufferHeapDesc.NumDescriptors = numberOfDescriptors;
 		cBufferHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		cBufferHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		creator->CreateDescriptorHeap(&cBufferHeapDesc, IID_PPV_ARGS(descriptorHeap.ReleaseAndGetAddressOf()));
+		descriptorHeapSize = creator->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
 
 	void InitializeStructuredBuffersAndViews(ID3D12Device* creator)
@@ -510,15 +533,31 @@ private:
 	void CreateRootSignature(ID3D12Device* creator)
 	{
 		Microsoft::WRL::ComPtr<ID3DBlob> signature, errors;
-		CD3DX12_ROOT_PARAMETER rootParams[4] = {};
+		CD3DX12_DESCRIPTOR_RANGE rootRanges[1] = { };
+		CD3DX12_ROOT_PARAMETER rootParams[5] = {};
 		CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
+
+		rootRanges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0); 
 
 		rootParams[0].InitAsConstants(32, 0);
 		rootParams[1].InitAsConstants(2, 1);
 		rootParams[2].InitAsShaderResourceView(0, 0, D3D12_SHADER_VISIBILITY_VERTEX);
 		rootParams[3].InitAsShaderResourceView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
+		rootParams[4].InitAsDescriptorTable(1, &rootRanges[0], D3D12_SHADER_VISIBILITY_PIXEL);
 
-		rootSignatureDesc.Init(ARRAYSIZE(rootParams), rootParams, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+		// static samplers
+		CD3DX12_STATIC_SAMPLER_DESC sampler(
+			0,
+			D3D12_FILTER_ANISOTROPIC,
+			D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+			0.0f, 16U,
+			D3D12_COMPARISON_FUNC_LESS_EQUAL,
+			D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE,
+			0.0f, 3.402823466e+38F,
+			D3D12_SHADER_VISIBILITY_PIXEL,
+			0);
+
+		rootSignatureDesc.Init(ARRAYSIZE(rootParams), rootParams, 1, &sampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 		D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors);
 
 		creator->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
@@ -669,5 +708,45 @@ public:
 	~Renderer()
 	{
 		// ComPtr will auto release so nothing to do here yet 
+	}
+
+	HRESULT Renderer::LoadTexture(Microsoft::WRL::ComPtr<ID3D12Device> device, Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>& cmd,
+		const std::wstring filepath, Microsoft::WRL::ComPtr<ID3D12Resource>& resource, Microsoft::WRL::ComPtr<ID3D12Resource>& upload, bool* IsCubeMap)
+	{
+		HRESULT hr = E_NOTIMPL;
+
+		std::unique_ptr<uint8_t[]> ddsData;
+		std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+		DirectX::DDS_ALPHA_MODE alphaMode;
+		hr = DirectX::LoadDDSTextureFromFile(device.Get(), filepath.c_str(), resource.GetAddressOf(),
+			ddsData, subresources, 0Ui64, &alphaMode, IsCubeMap);
+
+		D3D12_RESOURCE_DESC resourceDesc = resource->GetDesc();
+		CD3DX12_HEAP_PROPERTIES upload_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		UINT64 uploadSize = GetRequiredIntermediateSize(resource.Get(), 0, resourceDesc.MipLevels * resourceDesc.DepthOrArraySize);
+		CD3DX12_RESOURCE_DESC upload_resource = CD3DX12_RESOURCE_DESC::Buffer(uploadSize);
+
+		// create a heap for uploading
+		device->CreateCommittedResource(
+			&upload_prop,
+			D3D12_HEAP_FLAG_NONE,
+			&upload_resource,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(upload.ReleaseAndGetAddressOf()));
+
+		// update the resource using the upload heap
+		UINT64 n = UpdateSubresources(cmd.Get(),
+			resource.Get(), upload.Get(),
+			0, 0, resourceDesc.MipLevels * resourceDesc.DepthOrArraySize,
+			subresources.data());
+
+		CD3DX12_RESOURCE_BARRIER resource_barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(),
+			D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		cmd->ResourceBarrier(1, &resource_barrier);
+
+		cmd->DiscardResource(upload.Get(), nullptr);
+
+		return S_OK;
 	}
 };

@@ -26,6 +26,8 @@ cbuffer MESH_DATA : register(b1, space0)
 };
 
 StructuredBuffer<OBJ_ATTRIBUTES> materials : register(t0, space0);
+Texture2D color : register(t1, space0);
+SamplerState filter : register(s0, space0);
 
 float4 main(float4 posH : SV_POSITION, float3 posW : WORLD, float3 normW : NORMAL) : SV_TARGET
 {
