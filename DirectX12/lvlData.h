@@ -122,7 +122,15 @@ private:
 			out.extent.z = std::fabsf(boundry[0].z - boundry[2].z) * 0.5f;
 			return out;
 		}
+
 	};
+
+	struct SUB_PARENT
+	{
+		int lastStart = 2;
+		GW::MATH::GMATRIXF transform;
+	}subParent;
+
 	// internal helper for reading the game level
 	bool ReadGameLevel(const char* gameLevelPath,
 		std::set<MODEL_ENTRY>& outModels,
@@ -200,13 +208,20 @@ private:
 					lastParentTransformPtr = &transform;
 				}
 			}
-			else if (std::strcmp(linebuffer, "  MESH") == 0)
+			else if (std::strcmp(linebuffer, " MESH") < 0)
 			{
+				int lineStart = std::string(linebuffer).find_first_of("M");
+				if (lineStart > subParent.lastStart)
+				{
+					*lastParentTransformPtr = subParent.transform;
+					subParent.lastStart = lineStart;
+				}
+				
 				file.ReadLine(linebuffer, 1024, '\n');
-				std::string blenderName = std::string(linebuffer).substr(2);
+				std::string blenderName = std::string(linebuffer).substr(lineStart);
 				log.LogCategorized("INFO", (std::string("Model Detected: ") + blenderName).c_str());
 				// create the model file name from this (strip the .001)
-				MODEL_ENTRY add = { std::string(linebuffer).substr(2).c_str() };
+				MODEL_ENTRY add = { std::string(linebuffer).substr(lineStart).c_str() };
 				add.modelFile = add.modelFile.substr(0, add.modelFile.find_last_of("."));
 				add.modelFile += ".h2b";
 
@@ -217,7 +232,7 @@ private:
 					// read floats
 					if (i == 0)
 					{
-						std::sscanf(linebuffer + 15, "%f, %f, %f, %f",
+						std::sscanf(linebuffer + 13 + lineStart, "%f, %f, %f, %f",
 							&transform.data[0 + i * 4], &transform.data[1 + i * 4],
 							&transform.data[2 + i * 4], &transform.data[3 + i * 4]);
 					}
@@ -228,6 +243,11 @@ private:
 							&transform.data[2 + i * 4], &transform.data[3 + i * 4]);
 					}
 				}
+
+				GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
+
+				subParent.transform = transform;
+
 				std::string loc = "Location: X ";
 				loc += std::to_string(transform.row4.x) + " Y " +
 					std::to_string(transform.row4.y) + " Z " + std::to_string(transform.row4.z);
@@ -237,7 +257,6 @@ private:
 				auto found = outModels.find(add);
 				if (found == outModels.end()) // no
 				{
-					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
 					add.parents.push_back(*lastParentTransformPtr);
@@ -245,7 +264,6 @@ private:
 				}
 				else // yes
 				{
-					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
 					found->parents.push_back(*lastParentTransformPtr);
@@ -343,7 +361,7 @@ private:
 				{
 					if (i->parents[j].row4.data[0] == levelTransforms[t].row4.data[0] &&
 						i->parents[j].row4.data[1] == levelTransforms[t].row4.data[1] &&
-						i->parents[j].row4.data[2] == levelTransforms[t].row4.data[2]) {
+						i->parents[j].row4.data[2] == levelTransforms[t].row4.data[2] && counter != t) {
 						blenderObjects[counter].parentTransformIndex = t;
 						break;
 					}

@@ -158,7 +158,7 @@ private:
 
 		InitializeGraphicsPipeline(creator);
 
-		UploadTextures(creator);
+		//UploadTextures(creator);
 
 		// free temporary handle
 		creator->Release();
@@ -460,6 +460,8 @@ private:
 		{
 			if (levelHandle.blenderObjects[i].parentTransformIndex != -1)
 			{
+				
+
 				GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
 					transformsForGPU[levelHandle.blenderObjects[i].parentTransformIndex],
 					transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
@@ -720,6 +722,7 @@ public:
 		DirectX::DDS_ALPHA_MODE alphaMode;
 		hr = DirectX::LoadDDSTextureFromFile(device.Get(), filepath.c_str(), resource.GetAddressOf(),
 			ddsData, subresources, 0Ui64, &alphaMode, IsCubeMap);
+
 
 		D3D12_RESOURCE_DESC resourceDesc = resource->GetDesc();
 		CD3DX12_HEAP_PROPERTIES upload_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
