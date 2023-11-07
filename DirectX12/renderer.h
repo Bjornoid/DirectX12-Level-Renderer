@@ -460,16 +460,19 @@ private:
 		{
 			if (levelHandle.blenderObjects[i].parentTransformIndex != -1)
 			{
-				if (levelHandle.blenderObjects[levelHandle.blenderObjects[i].parentTransformIndex].parentTransformIndex != -1)
+				int grandParentIndex = levelHandle.blenderObjects[levelHandle.blenderObjects[i].parentTransformIndex].parentTransformIndex;
+				int parentIndex = levelHandle.blenderObjects[i].parentTransformIndex;
+				if (grandParentIndex != -1)
 				{
 					GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
-						levelHandle.levelTransforms[levelHandle.blenderObjects[i].parentTransformIndex],
-						levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex]);
+						levelHandle.levelTransforms[parentIndex],
+						transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
+
 				}
 				else
 				{
 					GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
-						transformsForGPU[levelHandle.blenderObjects[i].parentTransformIndex],
+						transformsForGPU[parentIndex],
 						transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
 				}
 			}

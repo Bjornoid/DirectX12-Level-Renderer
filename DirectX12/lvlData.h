@@ -244,8 +244,6 @@ private:
 					}
 				}
 
-				GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
-
 				subParent.transform = transform;
 
 				std::string loc = "Location: X ";
@@ -257,6 +255,7 @@ private:
 				auto found = outModels.find(add);
 				if (found == outModels.end()) // no
 				{
+					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
 					add.parents.push_back(*lastParentTransformPtr);
@@ -264,6 +263,7 @@ private:
 				}
 				else // yes
 				{
+					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
 					found->parents.push_back(*lastParentTransformPtr);
