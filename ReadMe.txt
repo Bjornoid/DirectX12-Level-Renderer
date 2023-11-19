@@ -8,8 +8,7 @@ FPS Camera Controls
 
 
 Level Swapping
-- Press 1 for Farm level (default)
-- Press 2 for Nature level
+- Press F1, select level folder, double click on the GameLevel.txt in the folder
 
 
 Music And Sound
