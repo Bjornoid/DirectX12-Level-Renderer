@@ -465,7 +465,7 @@ private:
 				if (grandParentIndex != -1)
 				{
 					GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
-						levelHandle.levelTransforms[parentIndex],
+						levelHandle.levelTransforms[grandParentIndex],
 						transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
 
 				}
