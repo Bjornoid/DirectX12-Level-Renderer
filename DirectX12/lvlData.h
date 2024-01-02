@@ -48,6 +48,8 @@ public:
 	// *NEW* each item from the blender scene graph
 	std::vector<BLENDER_OBJECT> blenderObjects;
 
+	Level_Data() {}
+
 	// Imports the default level txt format and collects all .h2b data
 	bool LoadLevel(const char* gameLevelPath,
 		const char* h2bFolderPath,
@@ -125,12 +127,6 @@ private:
 
 	};
 
-	struct SUB_PARENT
-	{
-		int lastStart = 2;
-		GW::MATH::GMATRIXF transform;
-	}subParent;
-
 	// internal helper for reading the game level
 	bool ReadGameLevel(const char* gameLevelPath,
 		std::set<MODEL_ENTRY>& outModels,
@@ -144,7 +140,8 @@ private:
 			return false;
 		}
 		char linebuffer[1024];
-		GW::MATH::GMATRIXF* lastParentTransformPtr = nullptr;
+		std::vector<GW::MATH::GMATRIXF> parentPtrs;
+		unsigned lastLineStart = 0;
 		while (+file.ReadLine(linebuffer, 1024, '\n'))
 		{
 			// having to have this is a bug, need to have Read/ReadLine return failure at EOF
@@ -198,24 +195,22 @@ private:
 					add.instances.push_back(transform);
 					add.parents.push_back(GW::MATH::GIdentityMatrixF);
 					outModels.insert(add);
-					lastParentTransformPtr = &transform;
+					parentPtrs.clear();
+					parentPtrs.push_back(transform);
 				}
 				else // yes
 				{
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
 					found->parents.push_back(GW::MATH::GIdentityMatrixF);
-					lastParentTransformPtr = &transform;
+					parentPtrs.clear();
+					parentPtrs.push_back(transform);
 				}
+				lastLineStart = 0;
 			}
 			else if (std::strcmp(linebuffer, " MESH") < 0)
 			{
 				int lineStart = std::string(linebuffer).find_first_of("M");
-				if (lineStart > subParent.lastStart)
-				{
-					*lastParentTransformPtr = subParent.transform;
-					subParent.lastStart = lineStart;
-				}
 				
 				file.ReadLine(linebuffer, 1024, '\n');
 				std::string blenderName = std::string(linebuffer).substr(lineStart);
@@ -244,8 +239,6 @@ private:
 					}
 				}
 
-				subParent.transform = transform;
-
 				std::string loc = "Location: X ";
 				loc += std::to_string(transform.row4.x) + " Y " +
 					std::to_string(transform.row4.y) + " Z " + std::to_string(transform.row4.z);
@@ -255,19 +248,38 @@ private:
 				auto found = outModels.find(add);
 				if (found == outModels.end()) // no
 				{
-					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
+					GW::MATH::GMatrix::MakeRelativeF(transform, parentPtrs[lineStart / 2 - 1], transform);
 					add.blenderNames.push_back(blenderName); // *NEW*
 					add.instances.push_back(transform);
-					add.parents.push_back(*lastParentTransformPtr);
 					outModels.insert(add);
+					if (lineStart > lastLineStart)
+					{
+						parentPtrs.push_back(transform);
+					}
+					else if (lineStart < lastLineStart)
+					{
+						parentPtrs.pop_back();
+						parentPtrs.push_back(transform);
+					}
+					add.parents.push_back(parentPtrs[lineStart / 2 - 1]);
 				}
 				else // yes
 				{
-					GW::MATH::GMatrix::MakeRelativeF(transform, *lastParentTransformPtr, transform);
+					GW::MATH::GMatrix::MakeRelativeF(transform, parentPtrs[(lineStart / 2) - 1], transform);
 					found->blenderNames.push_back(blenderName); // *NEW*
 					found->instances.push_back(transform);
-					found->parents.push_back(*lastParentTransformPtr);
+					if (lineStart > lastLineStart)
+					{
+						parentPtrs.push_back(transform);
+					}
+					else if (lineStart < lastLineStart)
+					{
+						parentPtrs.pop_back();
+						parentPtrs.push_back(transform);
+					}
+					found->parents.push_back(parentPtrs[lineStart / 2 - 1]);
 				}
+				lastLineStart = lineStart;
 			}
 		}
 		log.LogCategorized("MESSAGE", "Game Level File Reading Complete.");

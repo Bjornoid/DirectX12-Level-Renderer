@@ -2,6 +2,7 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #include "d3dx12.h" // official helper file provided by microsoft
 #include <DDSTextureLoader.h>
+
 #include <commdlg.h>
 
 void PrintLabeledDebugString(const char* label, const char* toPrint)
@@ -158,7 +159,7 @@ private:
 
 		InitializeGraphicsPipeline(creator);
 
-		//UploadTextures(creator);
+		UploadTextures(creator);
 
 		// free temporary handle
 		creator->Release();
@@ -262,10 +263,7 @@ private:
 		sceneDataForGPU.sunAmbiet = sunLightAmbient;
 
 		//Transform Init
-		for (int i = 0; i < levelHandle.levelTransforms.size(); i++)
-		{
-			transformsForGPU.push_back(levelHandle.levelTransforms[i]);
-		}
+		transformsForGPU = levelHandle.levelTransforms;
 	}
 
 	void InitializeDescriptorHeap(ID3D12Device* creator)
@@ -345,7 +343,6 @@ private:
 		transformStructuredBuffer[curFrameBufferIndex]->Map(0, &CD3DX12_RANGE(0, 0), reinterpret_cast<void**>(&transferMemoryLocation));
 		memcpy(transferMemoryLocation, transformsForGPU.data(), sizeof(GW::MATH::GMATRIXF) * transformsForGPU.size());
 		transformStructuredBuffer[curFrameBufferIndex]->Unmap(0, nullptr);
-		
 	}
 
 	std::string OpenFile(const char* filter)
@@ -458,23 +455,21 @@ private:
 	{
 		for (int i = 0; i < levelHandle.blenderObjects.size(); i++)
 		{
-			if (levelHandle.blenderObjects[i].parentTransformIndex != -1)
-			{
-				int grandParentIndex = levelHandle.blenderObjects[levelHandle.blenderObjects[i].parentTransformIndex].parentTransformIndex;
-				int parentIndex = levelHandle.blenderObjects[i].parentTransformIndex;
-				if (grandParentIndex != -1)
-				{
-					GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
-						levelHandle.levelTransforms[grandParentIndex],
-						transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
+			int parentIndex = levelHandle.blenderObjects[i].parentTransformIndex;
+			int curIndex = levelHandle.blenderObjects[i].transformIndex;
+			int grandParentIndex = (parentIndex != -1) ? levelHandle.blenderObjects[parentIndex].parentTransformIndex : -1;
 
-				}
-				else
-				{
-					GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[levelHandle.blenderObjects[i].transformIndex],
-						transformsForGPU[parentIndex],
-						transformsForGPU[levelHandle.blenderObjects[i].transformIndex]);
-				}
+			if (parentIndex != -1 && grandParentIndex == -1)
+			{
+				GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[curIndex], transformsForGPU[parentIndex], transformsForGPU[curIndex]);
+			}
+			else if (parentIndex != -1 && grandParentIndex != -1)
+			{
+				GW::MATH::GMATRIXF posMatrix = GW::MATH::GIdentityMatrixF;
+				GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[curIndex], levelHandle.levelTransforms[parentIndex], posMatrix);
+
+				GW::MATH::GMatrix::MultiplyMatrixF(levelHandle.levelTransforms[curIndex], transformsForGPU[parentIndex], transformsForGPU[curIndex]);
+				transformsForGPU[curIndex].row4 = posMatrix.row4;
 			}
 		}
 	}
