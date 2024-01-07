@@ -78,8 +78,8 @@ class Renderer
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>				descriptorHeap;
 	UINT														descriptorHeapSize;
 
-	Microsoft::WRL::ComPtr<ID3D12Resource>						textureResource;
-	Microsoft::WRL::ComPtr<ID3D12Resource>						textureUpload;
+	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>			textureResource;
+	std::vector < Microsoft::WRL::ComPtr<ID3D12Resource>>		textureUpload;
 
 	//*HARD CODED* sun settings
 	GW::MATH::GVECTORF											sunLightDir = { -1, -1, 2 },
@@ -247,10 +247,10 @@ private:
 
 		Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> c(commandList);
 		bool isCubeMap = false;
-		HRESULT hr = E_NOTIMPL;
-		std::wstring texturePath = L"../Level3/Textures/cleric-staff-texture.dds";
-		hr = LoadTexture(creator, c, texturePath, textureResource, textureUpload, &isCubeMap);
-
+		std::wstring texturePath = L"../Level3/Textures/";
+		ID3D12CommandQueue* queue;
+		d3d.GetCommandQueue((void**)&queue);
+		LoadTextures(creator, c, texturePath, queue);
 
 		commandList->Release();
 	}
@@ -717,6 +717,43 @@ public:
 		// ComPtr will auto release so nothing to do here yet 
 	}
 
+	void Renderer::LoadTextures(Microsoft::WRL::ComPtr<ID3D12Device> device, Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>& cmd,
+		const std::wstring filepath, Microsoft::WRL::ComPtr<ID3D12CommandQueue> q)
+	{
+		std::wstring textures[] = 
+		{ 
+			L"cleric-staff-texture.dds", L"cleric-texture.dds",
+			L"monk-texture.dds", 
+			L"ranger-bow-texture.dds", L"ranger-texture.dds", 
+			L"Rogue_Dagger_Texture.dds", L"Rogue_Texture.dds",
+			L"Wizard_Staff_Texture.dds", L"Wizard_Texture.dds"
+			L"Warrior_Sword_Texture.dds", L"Warrior_Texture.dds"
+			L"Texture_DarkBlue.dds", L"Texture_Grey.dds"
+		};
+
+		UINT textures_size = ARRAYSIZE(textures);
+		bool isCubeMap = false;
+		UINT textureIndex = 0;
+		textureResource.resize(textures_size);
+		textureUpload.resize(textures_size);
+		for (size_t i = 0; i < textures_size; i++)
+		{
+			std::wstring t = filepath;
+			t += textures[i];
+			HRESULT hr = LoadTexture(device, cmd, t, textureResource[i], textureUpload[i], &isCubeMap);
+
+			D3D12_RESOURCE_DESC resourceDesc = textureResource[i]->GetDesc();
+			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = D3D12_SHADER_RESOURCE_VIEW_DESC();
+			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			srvDesc.Format = resourceDesc.Format;
+			srvDesc.ViewDimension = (isCubeMap) ? D3D12_SRV_DIMENSION_TEXTURECUBE : D3D12_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2D.MipLevels = resourceDesc.MipLevels;
+			CD3DX12_CPU_DESCRIPTOR_HANDLE descHandle(descriptorHeap->GetCPUDescriptorHandleForHeapStart(), textureIndex, descriptorHeapSize);
+			device->CreateShaderResourceView(textureResource[i].Get(), &srvDesc, descHandle);
+			textureIndex++;
+		}
+	}
+
 	HRESULT Renderer::LoadTexture(Microsoft::WRL::ComPtr<ID3D12Device> device, Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList>& cmd,
 		const std::wstring filepath, Microsoft::WRL::ComPtr<ID3D12Resource>& resource, Microsoft::WRL::ComPtr<ID3D12Resource>& upload, bool* IsCubeMap)
 	{
@@ -728,14 +765,13 @@ public:
 		hr = DirectX::LoadDDSTextureFromFile(device.Get(), filepath.c_str(), resource.GetAddressOf(),
 			ddsData, subresources, 0Ui64, &alphaMode, IsCubeMap);
 
-
 		D3D12_RESOURCE_DESC resourceDesc = resource->GetDesc();
 		CD3DX12_HEAP_PROPERTIES upload_prop = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
 		UINT64 uploadSize = GetRequiredIntermediateSize(resource.Get(), 0, resourceDesc.MipLevels * resourceDesc.DepthOrArraySize);
 		CD3DX12_RESOURCE_DESC upload_resource = CD3DX12_RESOURCE_DESC::Buffer(uploadSize);
 
 		// create a heap for uploading
-		device->CreateCommittedResource(
+		hr = device->CreateCommittedResource(
 			&upload_prop,
 			D3D12_HEAP_FLAG_NONE,
 			&upload_resource,

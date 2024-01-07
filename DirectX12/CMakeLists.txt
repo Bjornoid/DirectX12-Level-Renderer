@@ -58,3 +58,13 @@ set_source_files_properties( ${PIXEL_SHADERS} PROPERTIES
         VS_SHADER_ENTRYPOINT main
         VS_TOOL_OVERRIDE "FXCompile"
 )
+
+# add support for dds texture loading
+include_directories(../directxtk12/include)
+# find the libraries
+find_library(DDS_LIB_D NAMES DirectXTK12_x64_Debug
+PATHS ../directxtk12/lib/)
+find_library(DDS_LIB_R NAMES DirectXTK12_x64_Release
+PATHS ../directxtk12/lib/)
+# link the kitx sdk include and lib files
+target_link_libraries(Level_Renderer_D3D12 debug ${DDS_LIB_D} optimized ${DDS_LIB_R})
